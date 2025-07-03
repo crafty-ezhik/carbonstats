@@ -35,7 +35,7 @@ func NewCarbonBilling(host string, port int, logger *zap.Logger) *CarbonBilling 
 	return carbon
 }
 
-func (c *CarbonBilling) CallApi(model string, params []byte) (map[string]any, error) {
+func (c *CarbonBilling) CallApi(model string, params []byte) ([]byte, error) {
 	apiUrl := fmt.Sprintf("http://%s/rest_api/v2/%s/", c.servAddr, model)
 
 	req, err := http.NewRequest(http.MethodPost, apiUrl, bytes.NewBuffer(params))
@@ -62,5 +62,5 @@ func (c *CarbonBilling) CallApi(model string, params []byte) (map[string]any, er
 	}
 
 	fmt.Println(string(respBody))
-	return nil, nil
+	return respBody, nil
 }
