@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/crafty-ezhik/carbonstats/config"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -15,13 +16,16 @@ import (
 )
 
 type CarbonBilling struct {
-	servAddr string
-	client   *http.Client
-	log      *zap.Logger
+	abonentsList *AbonentsInfoList
+	servAddr     string
+	pastDate     time.Time
+	currentDate  time.Time
+	client       *http.Client
+	log          *zap.Logger
 }
 
 // TODO: После реализации методов, сделать отдачу интерфейса, а не структуры
-func NewCarbonBilling(host string, port int) *CarbonBilling {
+func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *CarbonBilling {
 	client := &http.Client{
 		Timeout: time.Second * 10,
 		Transport: &http.Transport{
@@ -32,14 +36,25 @@ func NewCarbonBilling(host string, port int) *CarbonBilling {
 	}
 
 	carbon := &CarbonBilling{
-		servAddr: fmt.Sprintf("%s:%d", host, port),
+		servAddr: fmt.Sprintf("%s:%d", carbonCfg.Host, carbonCfg.Port),
 		client:   client,
-		//log:      logger,
+		log:      logger,
 	}
+
+	abonList, err := carbon.getAbonentsList(carbonCfg.Parents)
+	if err != nil {
+		panic("Failed to create abonents list")
+	}
+	carbon.abonentsList = abonList
+
 	return carbon
 }
 
-func (c *CarbonBilling) GetAbonentsList(parents []int) (*AbonentsInfoList, error) {
+func (c *CarbonBilling) getAbonentDocument() {
+
+}
+
+func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, error) {
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -160,4 +175,10 @@ func (c *CarbonBilling) addArgs(formData *url.Values, args []Pair, argsNumber st
 	}
 	formData.Add(argsNumber, string(argsJson))
 	return nil
+}
+
+func (c *CarbonBilling) PrintAbonentsList() {
+	for _, item := range c.abonentsList.Abonents {
+		fmt.Println(item)
+	}
 }

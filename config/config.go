@@ -4,6 +4,7 @@ import (
 	"github.com/joho/godotenv"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -21,8 +22,9 @@ type DBConfig struct {
 }
 
 type CarbonConfig struct {
-	Host string
-	Port int
+	Host    string
+	Port    int
+	Parents []string
 }
 
 type LoggerConfig struct {
@@ -39,11 +41,14 @@ func LoadConfig() *Config {
 		carbonPort = 8082
 	}
 
+	carbonParents := strings.Split(os.Getenv("CARBON_PARENTS"), ",")
+
 	return &Config{
 		DB: DBConfig{},
 		Carbon: CarbonConfig{
-			Host: os.Getenv("CARBON_HOST"),
-			Port: carbonPort,
+			Host:    os.Getenv("CARBON_HOST"),
+			Port:    carbonPort,
+			Parents: carbonParents,
 		},
 		Log: LoggerConfig{
 			Debug: os.Getenv("CARBON_DEBUG") == "true",
