@@ -53,13 +53,20 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 }
 
 func (c *CarbonBilling) Run() {
-	//abonent := c.abonentsList.Abonents[0]
-	for _, abonent := range c.abonentsList.Abonents {
-		res, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
+	abonent := c.abonentsList.Abonents[2]
 
-		fmt.Println(res)
+	docInfo, _ := c.getAbonentDocument(&abonent)
+	minInfo, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
+	additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
 
-	}
+	fmt.Println("Сумма УПД: ", docInfo.Amount)
+	fmt.Println("Сумма за минуты: ", minInfo.Amount)
+	fmt.Println("Additional Cost Additional:", additionalCost)
+
+}
+
+func (c *CarbonBilling) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
+	return docInfo.Amount.Sub(minInfo.Amount)
 
 }
 
