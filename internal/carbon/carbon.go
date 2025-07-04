@@ -53,15 +53,102 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 }
 
 func (c *CarbonBilling) Run() {
+	//abonent := c.abonentsList.Abonents[0]
 	for _, abonent := range c.abonentsList.Abonents {
-		result, err := c.getAbonentDocument(&abonent)
-		if err != nil {
-			c.log.Error("Failed to get abonent document", zap.Error(err))
-		}
+		res, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
 
-		fmt.Printf("Абонент: %s. Документ:%v\n\n", abonent.Name, result) // TODO: Убрать
-		// TODO: Убрать
+		fmt.Println(res)
+
 	}
+
+}
+
+func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error) {
+	data := RequestParams{
+		Method1: ObjFilter,
+		Arg1: []Pair{
+			{
+				Key:   "abonent_id",
+				Value: clientPk,
+			},
+			{
+				Key:   "month_number",
+				Value: monthNumber,
+			},
+			{
+				Key:   "year_number",
+				Value: year,
+			},
+		},
+		Fields: []string{FieldMonth, FieldYear, FieldAmount, FieldOutgoingTraffic},
+	}
+
+	formData, err := c.buildFormData(data)
+	if err != nil {
+		c.log.Error("Error creating formData", zap.Error(err))
+		return &MinutesInfo{
+			Count:  decimal.Zero,
+			Amount: decimal.Zero,
+		}, nil
+	}
+
+	resp, err := c.callApi(ModelVoipCounters, []byte(formData.Encode()))
+	if err != nil {
+		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		return &MinutesInfo{
+			Count:  decimal.Zero,
+			Amount: decimal.Zero,
+		}, nil
+	}
+
+	var respData ResponseWithManyRes
+	err = json.Unmarshal(resp, &respData)
+	if err != nil {
+		c.log.Error("Error unmarshalling response", zap.Error(err))
+		return &MinutesInfo{
+			Count:  decimal.Zero,
+			Amount: decimal.Zero,
+		}, nil
+	}
+	if len(respData.Error) > 0 {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		return &MinutesInfo{
+			Count:  decimal.Zero,
+			Amount: decimal.Zero,
+		}, errors.New(respData.Error[len(respData.Error)-1])
+	}
+
+	if len(respData.Result) < 1 {
+		c.log.Debug("There are no elements in the response")
+		return &MinutesInfo{
+			Count:  decimal.Zero,
+			Amount: decimal.Zero,
+		}, nil
+	}
+
+	output := MinutesInfo{}
+	if len(respData.Result) > 1 {
+		for _, item := range respData.Result {
+			field := item.Fields
+			amount, _ := decimal.NewFromString(field["summa"].(string))
+			count, _ := decimal.NewFromString(field["v_out"].(string))
+
+			output.Count = output.Count.Add(count)
+			output.Amount = output.Amount.Add(amount)
+		}
+	} else {
+		field := respData.Result[0].Fields
+		amount, _ := decimal.NewFromString(field["summa"].(string))
+		count, _ := decimal.NewFromString(field["v_out"].(string))
+
+		output.Count = output.Count.Add(count)
+		output.Amount = output.Amount.Add(amount)
+	}
+
+	output.Count = output.Count.Round(2)
+	output.Amount = output.Amount.Round(2)
+
+	return &output, nil
 }
 
 func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error) {
@@ -102,9 +189,9 @@ func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo,
 		c.log.Error("Error unmarshalling response", zap.Error(err))
 		return nil, err
 	}
-	if respData.Error != "" {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error))
-		return nil, errors.New(respData.Error)
+	if len(respData.Error) > 0 {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		return nil, errors.New(respData.Error[len(respData.Error)-1])
 	}
 
 	if len(respData.Result) < 1 {
@@ -173,9 +260,9 @@ func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.De
 		c.log.Error("Error unmarshalling response", zap.Error(err))
 		return decimal.Zero, err
 	}
-	if respData.Error != "" {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error))
-		return decimal.Zero, errors.New(respData.Error)
+	if len(respData.Error) > 0 {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		return decimal.Zero, errors.New(respData.Error[len(respData.Error)-1])
 	}
 	if len(respData.Result) < 1 {
 		c.log.Debug("There are no elements in the response")
@@ -223,8 +310,9 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 		c.log.Error("Error unmarshalling response", zap.Error(err))
 		return nil, err
 	}
-	if respData.Error != "" {
-		return nil, errors.New(respData.Error)
+	if len(respData.Error) > 0 {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		return nil, errors.New(respData.Error[len(respData.Error)-1])
 	}
 
 	var output AbonentsInfoList

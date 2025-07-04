@@ -80,13 +80,13 @@ type Response struct {
 type ResponseWithManyRes struct {
 	Call   string          `json:"call"`
 	Result []ResultRequest `json:"result"`
-	Error  string          `json:"error"`
+	Error  []string        `json:"error"`
 }
 
 type ResponseWithManyRes2 struct {
 	Call   string          `json:"call"`
 	Result []ResultRequest `json:"result"`
-	Error  string          `json:"error"`
+	Error  []string        `json:"error"`
 }
 
 type ResultRequest struct {
@@ -114,6 +114,6 @@ type DocumentInfo struct {
 }
 
 type MinutesInfo struct {
-	Count  int             `json:"count"`
+	Count  decimal.Decimal `json:"count"`
 	Amount decimal.Decimal `json:"op_summa"`
 }
