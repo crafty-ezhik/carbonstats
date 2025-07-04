@@ -11,6 +11,6 @@ func main() {
 	cfg := config.LoadConfig()
 	billing := carbon.NewCarbonBilling(&cfg.Carbon, myLogger)
 
-	billing.PrintAbonentsList()
+	billing.Run()
 
 }

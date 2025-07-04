@@ -1,5 +1,7 @@
 package carbon
 
+import "github.com/shopspring/decimal"
+
 const (
 	MethodOne   = "method1"
 	ArgOne      = "arg1"
@@ -11,13 +13,18 @@ const (
 )
 
 const (
+	MethodGetDetails = "get_details"
+)
+
+const (
 	ObjFilter = "objects.filter"
 	ObjAll    = "objects.all"
 	ObjGet    = "objects.get"
 )
 
 const (
-	ModelAbonents = "Abonents"
+	ModelAbonents         = "Abonents"
+	ModelFinanceOperation = "FinanceOperations"
 )
 
 const (
@@ -26,6 +33,12 @@ const (
 	FieldContractNumber = "\"contract_number\""
 	FieldOperatorID     = "\"operator_id\""
 	FieldParentID       = "\"parent_id\""
+
+	FieldOpSumma = "\"op_summa\""
+	FieldNumber  = "\"number\""
+
+	FieldPrice  = "\"price\""
+	FieldVolume = "\"vv\""
 )
 
 type AnyMap map[string]interface{}
@@ -46,15 +59,27 @@ type RequestParams struct {
 }
 
 type Response struct {
-	Call   string         `json:"call"`
-	Result map[string]any `json:"result"`
-	Error  string         `json:"error"`
+	Call   string        `json:"call"`
+	Result ResultRequest `json:"result"`
+	Error  string        `json:"error"`
 }
 
 type ResponseWithManyRes struct {
-	Call   string           `json:"call"`
-	Result []map[string]any `json:"result"`
-	Error  string           `json:"error"`
+	Call   string          `json:"call"`
+	Result []ResultRequest `json:"result"`
+	Error  string          `json:"error"`
+}
+
+type ResponseWithManyRes2 struct {
+	Call   string          `json:"call"`
+	Result []ResultRequest `json:"result"`
+	Error  string          `json:"error"`
+}
+
+type ResultRequest struct {
+	PK     int            `json:"pk"`
+	Model  string         `json:"model"`
+	Fields map[string]any `json:"fields"`
 }
 
 type AbonentsInfoList struct {
@@ -68,4 +93,9 @@ type AbonentInfo struct {
 	Email          string `json:"email"`
 	OperatorID     int    `json:"operator_id"`
 	ParentID       int    `json:"parent_id"`
+}
+
+type DocumentInfo struct {
+	Number string          `json:"number"`
+	Amount decimal.Decimal `json:"op_summa"`
 }
