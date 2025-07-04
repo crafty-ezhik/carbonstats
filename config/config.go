@@ -1,5 +1,12 @@
 package config
 
+import (
+	"github.com/joho/godotenv"
+	"os"
+	"strconv"
+	"strings"
+)
+
 type Config struct {
 	DB     DBConfig
 	Carbon CarbonConfig
@@ -15,9 +22,9 @@ type DBConfig struct {
 }
 
 type CarbonConfig struct {
-	Host     string
-	Username string
-	Password string
+	Host    string
+	Port    int
+	Parents []string
 }
 
 type LoggerConfig struct {
@@ -25,5 +32,26 @@ type LoggerConfig struct {
 }
 
 func LoadConfig() *Config {
-	return &Config{}
+	err := godotenv.Load()
+	if err != nil {
+		panic("Error loading .env file")
+	}
+	carbonPort, err := strconv.Atoi(os.Getenv("CARBON_PORT"))
+	if err != nil {
+		carbonPort = 8082
+	}
+
+	carbonParents := strings.Split(os.Getenv("CARBON_PARENTS"), ",")
+
+	return &Config{
+		DB: DBConfig{},
+		Carbon: CarbonConfig{
+			Host:    os.Getenv("CARBON_HOST"),
+			Port:    carbonPort,
+			Parents: carbonParents,
+		},
+		Log: LoggerConfig{
+			Debug: os.Getenv("CARBON_DEBUG") == "true",
+		},
+	}
 }
