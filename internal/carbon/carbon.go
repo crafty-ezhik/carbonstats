@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crafty-ezhik/carbonstats/config"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
@@ -39,6 +40,7 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 		servAddr: fmt.Sprintf("%s:%d", carbonCfg.Host, carbonCfg.Port),
 		client:   client,
 		log:      logger,
+		pastDate: time.Now().AddDate(0, 0, -time.Now().Day()),
 	}
 
 	abonList, err := carbon.getAbonentsList(carbonCfg.Parents)
@@ -50,8 +52,145 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 	return carbon
 }
 
-func (c *CarbonBilling) getAbonentDocument() {
+func (c *CarbonBilling) Run() {
+	for _, abonent := range c.abonentsList.Abonents {
+		result, err := c.getAbonentDocument(&abonent)
+		if err != nil {
+			c.log.Error("Failed to get abonent document", zap.Error(err))
+		}
 
+		fmt.Printf("Абонент: %s. Документ:%v\n\n", abonent.Name, result) // TODO: Убрать
+		// TODO: Убрать
+	}
+}
+
+func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error) {
+	data := RequestParams{
+		Method1: ObjFilter,
+		Arg1: []Pair{
+			{
+				Key:   "abonent",
+				Value: abonent.PK,
+			},
+			{
+				Key:   "op_type",
+				Value: 1,
+			},
+			{
+				Key:   "period_end_date",
+				Value: c.pastDate.Format(time.DateOnly),
+			},
+		},
+		Fields: []string{FieldOpSumma, FieldNumber},
+	}
+
+	formData, err := c.buildFormData(data)
+	if err != nil {
+		c.log.Error("Error creating formData", zap.Error(err))
+		return nil, err
+	}
+
+	resp, err := c.callApi(ModelFinanceOperation, []byte(formData.Encode()))
+	if err != nil {
+		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		return nil, err
+	}
+
+	var respData ResponseWithManyRes
+	err = json.Unmarshal(resp, &respData)
+	if err != nil {
+		c.log.Error("Error unmarshalling response", zap.Error(err))
+		return nil, err
+	}
+	if respData.Error != "" {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error))
+		return nil, errors.New(respData.Error)
+	}
+
+	if len(respData.Result) < 1 {
+		c.log.Debug("There are no elements in the response")
+		return &DocumentInfo{
+			Number: "Нет документа за данный период",
+			Amount: decimal.NewFromFloat(0),
+		}, nil
+	}
+
+	docInfo := respData.Result[0]
+	opSumma, err := c.getDocumentAmount(docInfo.PK, abonent.PK)
+	if err != nil {
+		c.log.Error("Error getting document amount", zap.Error(err))
+		return nil, err
+	}
+
+	output := &DocumentInfo{
+		Number: docInfo.Fields["number"].(string),
+		Amount: opSumma,
+	}
+
+	return output, nil
+}
+
+func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.Decimal, error) {
+	data := RequestParams{
+		Method1: ObjGet,
+		Arg1: []Pair{
+			{
+				Key:   "abonent",
+				Value: clientPk,
+			},
+			{
+				Key:   "op_type",
+				Value: 1,
+			},
+			{
+				Key:   "period_end_date",
+				Value: c.pastDate.Format(time.DateOnly),
+			},
+			{
+				Key:   "op_id",
+				Value: operationPk,
+			},
+		},
+		Method2: MethodGetDetails,
+		Fields:  []string{FieldVolume, FieldPrice},
+	}
+
+	formData, err := c.buildFormData(data)
+	if err != nil {
+		c.log.Error("Error creating formData", zap.Error(err))
+		return decimal.Zero, err
+	}
+
+	resp, err := c.callApi(ModelFinanceOperation, []byte(formData.Encode()))
+	if err != nil {
+		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		return decimal.Zero, err
+	}
+
+	var respData ResponseWithManyRes
+	err = json.Unmarshal(resp, &respData)
+	if err != nil {
+		c.log.Error("Error unmarshalling response", zap.Error(err))
+		return decimal.Zero, err
+	}
+	if respData.Error != "" {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error))
+		return decimal.Zero, errors.New(respData.Error)
+	}
+	if len(respData.Result) < 1 {
+		c.log.Debug("There are no elements in the response")
+		return decimal.Zero, nil
+	}
+
+	summa := decimal.NewFromFloat(0.0)
+	for _, operation := range respData.Result {
+		fields := operation.Fields
+		price := decimal.NewFromFloat(fields["price"].(float64))
+		volume := decimal.NewFromFloat(fields["vv"].(float64))
+
+		summa = summa.Add(price.Mul(volume))
+	}
+	return summa.Round(2), nil
 }
 
 func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, error) {
@@ -68,20 +207,20 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 
 	formData, err := c.buildFormData(data)
 	if err != nil {
-		//c.log.Error("Error creating formData", zap.Error(err))
+		c.log.Error("Error creating formData", zap.Error(err))
 		return nil, err
 	}
 
 	resp, err := c.callApi(ModelAbonents, []byte(formData.Encode()))
 	if err != nil {
-		//c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
 		return nil, err
 	}
 
 	var respData ResponseWithManyRes
 	err = json.Unmarshal(resp, &respData)
 	if err != nil {
-		//c.log.Error("Error unmarshalling response", zap.Error(err))
+		c.log.Error("Error unmarshalling response", zap.Error(err))
 		return nil, err
 	}
 	if respData.Error != "" {
@@ -90,9 +229,9 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 
 	var output AbonentsInfoList
 	for _, abonent := range respData.Result {
-		fields := abonent["fields"].(map[string]any)
+		fields := abonent.Fields
 		abonInfo := AbonentInfo{
-			PK:             int(abonent["pk"].(float64)),
+			PK:             abonent.PK,
 			Name:           fields["name"].(string),
 			ContractNumber: fields["contract_number"].(string),
 			Email:          fields["email"].(string),
@@ -131,7 +270,7 @@ func (c *CarbonBilling) callApi(model string, params []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Println(string(respBody))
+	c.log.Debug("Response from Carbon Billing", zap.String("ResponseBody", string(respBody))) // TODO: Убрать
 	return respBody, nil
 }
 
