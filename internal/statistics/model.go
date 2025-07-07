@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
-type Statistics struct {
+type ClientStatistics struct {
 	ID                  uint            `gorm:"primarykey"`
+	Month               uint            `json:"month"`
+	Year                uint            `json:"year"`
 	CarbonPK            uint            `json:"carbon_pk"`
 	ClientName          string          `gorm:"unique" json:"client_name"`
 	MinutesCount        decimal.Decimal `gorm:"type:numeric(10,2)" json:"minutes_count"`

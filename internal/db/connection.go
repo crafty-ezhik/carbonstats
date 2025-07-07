@@ -27,7 +27,7 @@ func GetConnection(config *config.DBConfig) *gorm.DB {
 
 func GoMigrate(db *gorm.DB) {
 	err := db.AutoMigrate(
-		statistics.Statistics{},
+		statistics.ClientStatistics{},
 		service_description.ServiceDescription{},
 	)
 	if err != nil {
