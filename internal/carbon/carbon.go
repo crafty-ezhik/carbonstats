@@ -16,17 +16,30 @@ import (
 	"time"
 )
 
-type CarbonBilling struct {
+type CarbonBilling interface {
+	calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal
+	getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (int, error)
+	getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error)
+	getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error)
+	getDocumentAmount(operationPk, clientPk int) (decimal.Decimal, error)
+	getAbonentsList(parents []string) (*AbonentsInfoList, error)
+	callApi(model string, params []byte) ([]byte, error)
+	buildFormData(params RequestParams) (url.Values, error)
+	addArgs(formData *url.Values, args []Pair, argsNumber string) error
+}
+
+type CarbonBillingImpl struct {
 	abonentsList *AbonentsInfoList
 	servAddr     string
 	pastDate     time.Time
 	currentDate  time.Time
 	client       *http.Client
-	log          *zap.Logger
+
+	log *zap.Logger
 }
 
 // TODO: После реализации методов, сделать отдачу интерфейса, а не структуры
-func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *CarbonBilling {
+func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) CarbonBilling {
 	client := &http.Client{
 		Timeout: time.Second * 60,
 		Transport: &http.Transport{
@@ -36,7 +49,7 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 		},
 	}
 
-	carbon := &CarbonBilling{
+	carbon := &CarbonBillingImpl{
 		servAddr: fmt.Sprintf("%s:%d", carbonCfg.Host, carbonCfg.Port),
 		client:   client,
 		log:      logger,
@@ -52,7 +65,7 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 	return carbon
 }
 
-func (c *CarbonBilling) Run() {
+func (c *CarbonBillingImpl) Run() {
 	abonent := c.abonentsList.Abonents[0]
 
 	docInfo, _ := c.getAbonentDocument(&abonent)
@@ -68,12 +81,12 @@ func (c *CarbonBilling) Run() {
 
 }
 
-func (c *CarbonBilling) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
+func (c *CarbonBillingImpl) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
 	return docInfo.Amount.Sub(minInfo.Amount)
 
 }
 
-func (c *CarbonBilling) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (int, error) {
+func (c *CarbonBillingImpl) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (int, error) {
 	startPastDate := c.pastDate.AddDate(0, 0, -c.pastDate.Day())
 	data := RequestParams{
 		Method1: ObjFilter,
@@ -106,7 +119,7 @@ func (c *CarbonBilling) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (in
 
 	resp, err := c.callApi(ModelVoipLog, []byte(formData.Encode()))
 	if err != nil {
-		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBillingImpl", zap.Error(err))
 		return 0, err
 	}
 
@@ -117,7 +130,7 @@ func (c *CarbonBilling) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (in
 		return 0, nil
 	}
 	if len(respData.Error) > 0 {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		c.log.Error("Error in the CarbonBillingImpl response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
 		return 0, errors.New(respData.Error[len(respData.Error)-1])
 	}
 
@@ -129,7 +142,7 @@ func (c *CarbonBilling) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (in
 	return len(respData.Result), nil
 }
 
-func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error) {
+func (c *CarbonBillingImpl) getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error) {
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -160,7 +173,7 @@ func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int)
 
 	resp, err := c.callApi(ModelVoipCounters, []byte(formData.Encode()))
 	if err != nil {
-		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBillingImpl", zap.Error(err))
 		return &MinutesInfo{
 			Count:  decimal.Zero,
 			Amount: decimal.Zero,
@@ -177,7 +190,7 @@ func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int)
 		}, nil
 	}
 	if len(respData.Error) > 0 {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		c.log.Error("Error in the CarbonBillingImpl response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
 		return &MinutesInfo{
 			Count:  decimal.Zero,
 			Amount: decimal.Zero,
@@ -217,7 +230,7 @@ func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int)
 	return &output, nil
 }
 
-func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error) {
+func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error) {
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -245,7 +258,7 @@ func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo,
 
 	resp, err := c.callApi(ModelFinanceOperation, []byte(formData.Encode()))
 	if err != nil {
-		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBillingImpl", zap.Error(err))
 		return nil, err
 	}
 
@@ -256,7 +269,7 @@ func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo,
 		return nil, err
 	}
 	if len(respData.Error) > 0 {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		c.log.Error("Error in the CarbonBillingImpl response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
 		return nil, errors.New(respData.Error[len(respData.Error)-1])
 	}
 
@@ -283,7 +296,7 @@ func (c *CarbonBilling) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo,
 	return output, nil
 }
 
-func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.Decimal, error) {
+func (c *CarbonBillingImpl) getDocumentAmount(operationPk, clientPk int) (decimal.Decimal, error) {
 	data := RequestParams{
 		Method1: ObjGet,
 		Arg1: []Pair{
@@ -316,7 +329,7 @@ func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.De
 
 	resp, err := c.callApi(ModelFinanceOperation, []byte(formData.Encode()))
 	if err != nil {
-		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBillingImpl", zap.Error(err))
 		return decimal.Zero, err
 	}
 
@@ -327,7 +340,7 @@ func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.De
 		return decimal.Zero, err
 	}
 	if len(respData.Error) > 0 {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		c.log.Error("Error in the CarbonBillingImpl response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
 		return decimal.Zero, errors.New(respData.Error[len(respData.Error)-1])
 	}
 	if len(respData.Result) < 1 {
@@ -346,7 +359,7 @@ func (c *CarbonBilling) getDocumentAmount(operationPk, clientPk int) (decimal.De
 	return summa.Round(2), nil
 }
 
-func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, error) {
+func (c *CarbonBillingImpl) getAbonentsList(parents []string) (*AbonentsInfoList, error) {
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -366,7 +379,7 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 
 	resp, err := c.callApi(ModelAbonents, []byte(formData.Encode()))
 	if err != nil {
-		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		c.log.Error("Error sent request to CarbonBillingImpl", zap.Error(err))
 		return nil, err
 	}
 
@@ -377,7 +390,7 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 		return nil, err
 	}
 	if len(respData.Error) > 0 {
-		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		c.log.Error("Error in the CarbonBillingImpl response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
 		return nil, errors.New(respData.Error[len(respData.Error)-1])
 	}
 
@@ -398,7 +411,7 @@ func (c *CarbonBilling) getAbonentsList(parents []string) (*AbonentsInfoList, er
 	return &output, nil
 }
 
-func (c *CarbonBilling) callApi(model string, params []byte) ([]byte, error) {
+func (c *CarbonBillingImpl) callApi(model string, params []byte) ([]byte, error) {
 	apiUrl := fmt.Sprintf("http://%s/rest_api/v2/%s/", c.servAddr, model)
 
 	req, err := http.NewRequest(http.MethodPost, apiUrl, bytes.NewBuffer(params))
@@ -428,7 +441,7 @@ func (c *CarbonBilling) callApi(model string, params []byte) ([]byte, error) {
 	return respBody, nil
 }
 
-func (c *CarbonBilling) buildFormData(params RequestParams) (url.Values, error) {
+func (c *CarbonBillingImpl) buildFormData(params RequestParams) (url.Values, error) {
 	formData := url.Values{}
 
 	formData.Add(MethodOne, params.Method1)
@@ -454,7 +467,7 @@ func (c *CarbonBilling) buildFormData(params RequestParams) (url.Values, error) 
 	return formData, nil
 }
 
-func (c *CarbonBilling) addArgs(formData *url.Values, args []Pair, argsNumber string) error {
+func (c *CarbonBillingImpl) addArgs(formData *url.Values, args []Pair, argsNumber string) error {
 	if len(args) < 1 {
 		return nil
 	}
@@ -470,7 +483,7 @@ func (c *CarbonBilling) addArgs(formData *url.Values, args []Pair, argsNumber st
 	return nil
 }
 
-func (c *CarbonBilling) PrintAbonentsList() {
+func (c *CarbonBillingImpl) PrintAbonentsList() {
 	for _, item := range c.abonentsList.Abonents {
 		fmt.Println(item)
 	}
