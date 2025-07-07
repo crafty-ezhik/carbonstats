@@ -7,6 +7,12 @@ import (
 
 func InitRoutes(r *chi.Mux, h service_description.ServiceDescriptionHandler) {
 	r.Route("/carbonstats", func(r chi.Router) {
-		r.Get("/", h.GetByCarbonPK())
+		r.Route("/services_desc", func(r chi.Router) {
+			r.Get("/{carbon_pk}", h.GetByCarbonPK())
+			r.Get("/", h.GetAll())
+			r.Post("/", h.Create())
+			r.Put("/{carbon_pk}", h.Update())
+			r.Delete("/{carbon_pk}", h.Delete())
+		})
 	})
 }
