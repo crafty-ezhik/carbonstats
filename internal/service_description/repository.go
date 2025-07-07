@@ -8,9 +8,9 @@ import (
 type ServiceDescriptionRepository interface {
 	Get(carbonPk uint) (ServiceDescription, error)
 	List() ([]ServiceDescription, error)
-	Create(description ServiceDescription) error
-	CreateBatch(description []ServiceDescription) error
-	Update(description ServiceDescription) error
+	Create(description *ServiceDescription) error
+	CreateBatch(description []*ServiceDescription) error
+	Update(carbonPk uint, description *ServiceDescription) error
 	Delete(carbonPk uint) error
 }
 
@@ -38,21 +38,21 @@ func (repo *serviceDescriptionImpl) List() ([]ServiceDescription, error) {
 }
 
 // Добавлений одной записи
-func (repo *serviceDescriptionImpl) Create(description ServiceDescription) error {
+func (repo *serviceDescriptionImpl) Create(description *ServiceDescription) error {
 	return repo.db.Create(description).Error
 }
 
 // Добавление списка записей
-func (repo *serviceDescriptionImpl) CreateBatch(description []ServiceDescription) error {
+func (repo *serviceDescriptionImpl) CreateBatch(description []*ServiceDescription) error {
 	return repo.db.Create(description).Error
 }
 
 // Обновление записи
-func (repo *serviceDescriptionImpl) Update(description ServiceDescription) error {
-	return repo.db.Save(description).Error
+func (repo *serviceDescriptionImpl) Update(carbonPk uint, description *ServiceDescription) error {
+	return repo.db.Model(&ServiceDescription{}).Where("carbon_pk = ?", carbonPk).Updates(description).Error
 }
 
 // Удаление записи
 func (repo *serviceDescriptionImpl) Delete(carbonPk uint) error {
-	return repo.db.Delete(ServiceDescription{}, "carbon_pk = ?", carbonPk).Error
+	return repo.db.Delete(&ServiceDescription{}, "carbon_pk = ?", carbonPk).Error
 }
