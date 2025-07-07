@@ -5,12 +5,19 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
 	DB     DBConfig
 	Carbon CarbonConfig
 	Log    LoggerConfig
+	Server ServerConfig
+}
+
+type ServerConfig struct {
+	Port    int
+	Timeout time.Duration
 }
 
 type DBConfig struct {
@@ -43,6 +50,16 @@ func LoadConfig() *Config {
 
 	carbonParents := strings.Split(os.Getenv("CARBON_PARENTS"), ",")
 
+	serverPort, err := strconv.Atoi(os.Getenv("SERVER_PORT"))
+	if err != nil {
+		serverPort = 8089
+	}
+
+	serverTimeout, err := time.ParseDuration(os.Getenv("SERVER_TIMEOUT"))
+	if err != nil {
+		serverTimeout = 30 * time.Second
+	}
+
 	return &Config{
 		DB: DBConfig{
 			Host:     os.Getenv("DATABASE_HOST"),
@@ -58,6 +75,10 @@ func LoadConfig() *Config {
 		},
 		Log: LoggerConfig{
 			Debug: os.Getenv("CARBON_DEBUG") == "true",
+		},
+		Server: ServerConfig{
+			Port:    serverPort,
+			Timeout: serverTimeout,
 		},
 	}
 }
