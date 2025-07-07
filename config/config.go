@@ -44,7 +44,13 @@ func LoadConfig() *Config {
 	carbonParents := strings.Split(os.Getenv("CARBON_PARENTS"), ",")
 
 	return &Config{
-		DB: DBConfig{},
+		DB: DBConfig{
+			Host:     os.Getenv("DATABASE_HOST"),
+			Port:     os.Getenv("DATABASE_PORT"),
+			Username: os.Getenv("DATABASE_USERNAME"),
+			Password: os.Getenv("DATABASE_PASSWORD"),
+			Database: os.Getenv("DATABASE_DATABASE"),
+		},
 		Carbon: CarbonConfig{
 			Host:    os.Getenv("CARBON_HOST"),
 			Port:    carbonPort,
