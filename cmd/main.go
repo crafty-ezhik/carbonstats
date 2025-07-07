@@ -6,6 +6,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/db"
 	"github.com/crafty-ezhik/carbonstats/internal/routes"
+	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/logger"
 	"github.com/go-chi/chi/v5"
 	"net/http"
@@ -22,11 +23,16 @@ func main() {
 
 	//billing.Run()
 
+	// Инициализация репозиториев
+	servDescRepo := service_description.NewServiceDescriptionRepository(database, myLogger)
+	// Инициализация обработчиков
+	servDescHandler := service_description.NewServiceDescriptionHandler(myLogger, servDescRepo)
+
 	// Инициализация роутера, middlewares, маршрутов
 	router := chi.NewRouter()
 
-	routes.InitRoutes(router)
 	routes.InitMiddleware(router, cfg.Server.Timeout)
+	routes.InitRoutes(router, servDescHandler)
 
 	// Кофигурирование сервера
 	server := http.Server{
