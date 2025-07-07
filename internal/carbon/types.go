@@ -30,6 +30,7 @@ const (
 	ModelAbonents         = "Abonents"
 	ModelFinanceOperation = "FinanceOperations"
 	ModelVoipCounters     = "VoipCounters"
+	ModelVoipLog          = "VoipLog"
 )
 
 // Поля, которые можно выбрать при запросе
@@ -50,6 +51,8 @@ const (
 	FieldYear            = "\"year_number\""
 	FieldOutgoingTraffic = "\"v_out\""
 	FieldAmount          = "\"summa\""
+
+	FieldBilled = "\"billed\""
 )
 
 type AnyMap map[string]interface{}

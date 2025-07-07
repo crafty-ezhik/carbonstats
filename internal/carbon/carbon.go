@@ -28,7 +28,7 @@ type CarbonBilling struct {
 // TODO: После реализации методов, сделать отдачу интерфейса, а не структуры
 func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *CarbonBilling {
 	client := &http.Client{
-		Timeout: time.Second * 10,
+		Timeout: time.Second * 60,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -53,21 +53,80 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) *Carbo
 }
 
 func (c *CarbonBilling) Run() {
-	abonent := c.abonentsList.Abonents[2]
+	abonent := c.abonentsList.Abonents[0]
 
 	docInfo, _ := c.getAbonentDocument(&abonent)
 	minInfo, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
 	additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
 
+	callsCount, _ := c.getOutgoingCallsOverPastPeriod(&abonent)
+
 	fmt.Println("Сумма УПД: ", docInfo.Amount)
 	fmt.Println("Сумма за минуты: ", minInfo.Amount)
-	fmt.Println("Additional Cost Additional:", additionalCost)
+	fmt.Println("Сумма за доп услуги:", additionalCost)
+	fmt.Println("Количество исходящих вызовов: ", callsCount)
 
 }
 
 func (c *CarbonBilling) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
 	return docInfo.Amount.Sub(minInfo.Amount)
 
+}
+
+func (c *CarbonBilling) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (int, error) {
+	startPastDate := c.pastDate.AddDate(0, 0, -c.pastDate.Day())
+	data := RequestParams{
+		Method1: ObjFilter,
+		Arg1: []Pair{
+			{
+				Key:   "s_time__range",
+				Value: []string{startPastDate.Format(time.DateOnly), c.pastDate.Format(time.DateOnly)},
+			},
+			{
+				Key:   "abonent_id",
+				Value: abonent.PK,
+			},
+			{
+				Key:   "billed",
+				Value: 1,
+			},
+			{
+				Key:   "duration__range",
+				Value: []int{1, 3600},
+			},
+		},
+		Fields: []string{FieldBilled},
+	}
+
+	formData, err := c.buildFormData(data)
+	if err != nil {
+		c.log.Error("Error creating formData", zap.Error(err))
+		return 0, err
+	}
+
+	resp, err := c.callApi(ModelVoipLog, []byte(formData.Encode()))
+	if err != nil {
+		c.log.Error("Error sent request to CarbonBilling", zap.Error(err))
+		return 0, err
+	}
+
+	var respData ResponseWithManyRes
+	err = json.Unmarshal(resp, &respData)
+	if err != nil {
+		c.log.Error("Error unmarshalling response", zap.Error(err))
+		return 0, nil
+	}
+	if len(respData.Error) > 0 {
+		c.log.Error("Error in the CarbonBilling response ", zap.String("Error", respData.Error[len(respData.Error)-1]))
+		return 0, errors.New(respData.Error[len(respData.Error)-1])
+	}
+
+	if len(respData.Result) < 1 {
+		c.log.Debug("There are no elements in the response")
+		return 0, nil
+	}
+
+	return len(respData.Result), nil
 }
 
 func (c *CarbonBilling) getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error) {
