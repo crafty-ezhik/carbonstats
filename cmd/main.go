@@ -17,12 +17,12 @@ import (
 func main() {
 	myLogger := logger.NewLogger(true)
 	cfg := config.LoadConfig()
-	_ = carbon.NewCarbonBilling(&cfg.Carbon, myLogger)
+	billing := carbon.NewCarbonBilling(&cfg.Carbon, myLogger)
 
 	database := db.GetConnection(&cfg.DB)
 	db.GoMigrate(database)
 
-	//billing.Run()
+	billing.StartStatisticsCollection()
 
 	// Инициализация репозиториев
 	servDescRepo := service_description.NewServiceDescriptionRepository(database, myLogger)

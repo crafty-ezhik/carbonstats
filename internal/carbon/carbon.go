@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crafty-ezhik/carbonstats/config"
+	"github.com/crafty-ezhik/carbonstats/internal/statistics"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,14 +29,16 @@ type CarbonBilling interface {
 	callApi(model string, params []byte) ([]byte, error)
 	buildFormData(params RequestParams) (url.Values, error)
 	addArgs(formData *url.Values, args []Pair, argsNumber string) error
+	StartStatisticsCollection()
 }
 
 type CarbonBillingImpl struct {
-	abonentsList *AbonentsInfoList
-	servAddr     string
-	pastDate     time.Time
-	currentDate  time.Time
-	client       *http.Client
+	abonentsList  *AbonentsInfoList
+	servAddr      string
+	carbonParents []string
+	pastDate      time.Time
+	currentDate   time.Time
+	client        *http.Client
 
 	log *zap.Logger
 }
@@ -61,24 +66,77 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) Carbon
 		panic("Failed to create abonents list")
 	}
 	carbon.abonentsList = abonList
+	carbon.carbonParents = carbonCfg.Parents
 
 	return carbon
 }
 
-func (c *CarbonBillingImpl) Run() {
-	abonent := c.abonentsList.Abonents[0]
+func (c *CarbonBillingImpl) StartStatisticsCollection() {
+	wg := &sync.WaitGroup{}
+	resChan := make(chan statistics.ClientStatistics)
+	numWorkers := len(c.abonentsList.Abonents)
+	month := int(c.pastDate.Month())
+	year := c.pastDate.Year()
 
-	docInfo, _ := c.getAbonentDocument(&abonent)
-	minInfo, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
-	additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
+	// Обновление списка клиентов
+	abonList, err := c.getAbonentsList(c.carbonParents)
+	if err != nil {
+		return
+	}
+	c.abonentsList = abonList
 
-	callsCount, _ := c.getOutgoingCallsOverPastPeriod(&abonent)
+	// Асинхронно для каждого клиента необходимо получить все данные, а затем отдать готовую структуру с данными
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			abonent := c.abonentsList.Abonents[i]
+			docInfo, err := c.getAbonentDocument(&abonent)
+			if err != nil {
+				return
+			}
+			minInfo, err := c.getMinutesForPastPeriod(month, year, abonent.PK)
+			if err != nil {
+				return
+			}
+			additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
+			callsCount, err := c.getOutgoingCallsOverPastPeriod(&abonent)
+			if err != nil {
+				return
+			}
 
-	fmt.Println("Сумма УПД: ", docInfo.Amount)
-	fmt.Println("Сумма за минуты: ", minInfo.Amount)
-	fmt.Println("Сумма за доп услуги:", additionalCost)
-	fmt.Println("Количество исходящих вызовов: ", callsCount)
+			var company string
+			if abonent.OperatorID == 1450 {
+				company = "БЛ"
+			} else {
+				company = "БИ"
+			}
 
+			data := statistics.ClientStatistics{
+				Month:               uint(month),
+				Year:                uint(year),
+				CarbonPK:            uint(abonent.PK),
+				ClientName:          abonent.Name,
+				MinutesCount:        minInfo.Count,
+				MinutesAmountWoTax:  minInfo.Amount,
+				ServicesAmountWoTaz: additionalCost,
+				TotalAmountWoTax:    docInfo.Amount,
+				DocNumber:           docInfo.Number,
+				CompanyAffiliation:  company,
+				CallsCount:          callsCount,
+			}
+			resChan <- data
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(resChan)
+	}()
+
+	for data := range resChan {
+		fmt.Println(data)
+	}
 }
 
 func (c *CarbonBillingImpl) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
@@ -276,7 +334,7 @@ func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentI
 	if len(respData.Result) < 1 {
 		c.log.Debug("There are no elements in the response")
 		return &DocumentInfo{
-			Number: "Нет документа за данный период",
+			Number: 0,
 			Amount: decimal.NewFromFloat(0),
 		}, nil
 	}
@@ -288,8 +346,14 @@ func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentI
 		return nil, err
 	}
 
+	docNumber, err := strconv.Atoi(docInfo.Fields["number"].(string))
+	if err != nil {
+		c.log.Error("Error parsing document number", zap.Error(err))
+		return nil, err
+	}
+
 	output := &DocumentInfo{
-		Number: docInfo.Fields["number"].(string),
+		Number: docNumber,
 		Amount: opSumma,
 	}
 
@@ -436,8 +500,7 @@ func (c *CarbonBillingImpl) callApi(model string, params []byte) ([]byte, error)
 		//c.log.Error("Error reading response", zap.Error(err))
 		return nil, err
 	}
-
-	c.log.Debug("Response from Carbon Billing", zap.String("ResponseBody", string(respBody))) // TODO: Убрать
+	c.log.Debug(fmt.Sprintf("Запрос к модели %s, выполнене успешно", model))
 	return respBody, nil
 }
 
