@@ -44,7 +44,7 @@ func (repo *serviceDescriptionImpl) Create(description *ServiceDescription) erro
 
 // Добавление списка записей
 func (repo *serviceDescriptionImpl) CreateBatch(description []*ServiceDescription) error {
-	return repo.db.Create(description).Error
+	return repo.db.Create(&description).Error
 }
 
 // Обновление записи

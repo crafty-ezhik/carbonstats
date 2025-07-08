@@ -2,6 +2,7 @@ package carbon
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -29,7 +30,7 @@ type CarbonBilling interface {
 	callApi(model string, params []byte) ([]byte, error)
 	buildFormData(params RequestParams) (url.Values, error)
 	addArgs(formData *url.Values, args []Pair, argsNumber string) error
-	StartStatisticsCollection()
+	StartStatisticsCollection() []statistics.ClientStatistics
 }
 
 type CarbonBillingImpl struct {
@@ -43,7 +44,6 @@ type CarbonBillingImpl struct {
 	log *zap.Logger
 }
 
-// TODO: После реализации методов, сделать отдачу интерфейса, а не структуры
 func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) CarbonBilling {
 	client := &http.Client{
 		Timeout: time.Second * 60,
@@ -71,17 +71,25 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) Carbon
 	return carbon
 }
 
-func (c *CarbonBillingImpl) StartStatisticsCollection() {
+// TODO: Реализовать передачу месяца и года, т.к возможно потребуется получить статистику за другие периоды
+func (c *CarbonBillingImpl) StartStatisticsCollection() []statistics.ClientStatistics {
+	// Обновление даты прошедшего периода
+	c.pastDate = time.Now().AddDate(0, 0, -time.Now().Day())
+
+	// TODO: Прокинуть контекст
+	var dataList []statistics.ClientStatistics
+
 	wg := &sync.WaitGroup{}
 	resChan := make(chan statistics.ClientStatistics)
 	numWorkers := len(c.abonentsList.Abonents)
-	month := int(c.pastDate.Month())
+
 	year := c.pastDate.Year()
+	month := int(c.pastDate.Month())
 
 	// Обновление списка клиентов
 	abonList, err := c.getAbonentsList(c.carbonParents)
 	if err != nil {
-		return
+		return nil
 	}
 	c.abonentsList = abonList
 
@@ -90,42 +98,7 @@ func (c *CarbonBillingImpl) StartStatisticsCollection() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			abonent := c.abonentsList.Abonents[i]
-			docInfo, err := c.getAbonentDocument(&abonent)
-			if err != nil {
-				return
-			}
-			minInfo, err := c.getMinutesForPastPeriod(month, year, abonent.PK)
-			if err != nil {
-				return
-			}
-			additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
-			callsCount, err := c.getOutgoingCallsOverPastPeriod(&abonent)
-			if err != nil {
-				return
-			}
-
-			var company string
-			if abonent.OperatorID == 1450 {
-				company = "БЛ"
-			} else {
-				company = "БИ"
-			}
-
-			data := statistics.ClientStatistics{
-				Month:               uint(month),
-				Year:                uint(year),
-				CarbonPK:            uint(abonent.PK),
-				ClientName:          abonent.Name,
-				MinutesCount:        minInfo.Count,
-				MinutesAmountWoTax:  minInfo.Amount,
-				ServicesAmountWoTaz: additionalCost,
-				TotalAmountWoTax:    docInfo.Amount,
-				DocNumber:           docInfo.Number,
-				CompanyAffiliation:  company,
-				CallsCount:          callsCount,
-			}
-			resChan <- data
+			resChan <- c.worker(context.TODO(), c.abonentsList.Abonents[i], month, year)
 		}()
 	}
 
@@ -135,8 +108,50 @@ func (c *CarbonBillingImpl) StartStatisticsCollection() {
 	}()
 
 	for data := range resChan {
-		fmt.Println(data)
+		dataList = append(dataList, data)
 	}
+	return dataList
+}
+
+// TODO: Реализовать контекст
+func (c *CarbonBillingImpl) worker(ctx context.Context, abonent AbonentInfo, month, year int) statistics.ClientStatistics {
+	docInfo, err := c.getAbonentDocument(&abonent)
+	if err != nil {
+		return statistics.ClientStatistics{}
+	}
+	minInfo, err := c.getMinutesForPastPeriod(month, year, abonent.PK)
+	if err != nil {
+		return statistics.ClientStatistics{}
+	}
+	additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
+	callsCount, err := c.getOutgoingCallsOverPastPeriod(&abonent)
+	if err != nil {
+		return statistics.ClientStatistics{}
+	}
+
+	var company string
+	if abonent.OperatorID == 1450 {
+		company = "БЛ"
+	} else {
+		company = "БИ"
+	}
+
+	data := statistics.ClientStatistics{
+		Month:               uint(month),
+		Year:                uint(year),
+		CarbonPK:            uint(abonent.PK),
+		ClientName:          abonent.Name,
+		MinutesCount:        minInfo.Count,
+		MinutesAmountWoTax:  minInfo.Amount,
+		ServicesAmountWoTaz: additionalCost,
+		TotalAmountWoTax:    docInfo.Amount,
+		DocNumber:           docInfo.Number,
+		CompanyAffiliation:  company,
+		CallsCount:          callsCount,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}
+	return data
 }
 
 func (c *CarbonBillingImpl) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {

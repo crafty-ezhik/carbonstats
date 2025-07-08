@@ -8,6 +8,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/routes"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
+	"github.com/crafty-ezhik/carbonstats/internal/utils"
 	"github.com/crafty-ezhik/carbonstats/logger"
 	"github.com/go-chi/chi/v5"
 	"net/http"
@@ -22,8 +23,6 @@ func main() {
 	database := db.GetConnection(&cfg.DB)
 	db.GoMigrate(database)
 
-	billing.StartStatisticsCollection()
-
 	// Инициализация репозиториев
 	servDescRepo := service_description.NewServiceDescriptionRepository(database, myLogger)
 	statsRepo := statistics.NewStatisticsRepository(database, myLogger)
@@ -37,6 +36,19 @@ func main() {
 
 	routes.InitMiddleware(router, cfg.Server.Timeout)
 	routes.InitRoutes(router, servDescHandler, statsHandler)
+
+	// TODO: УБрать
+
+	res := utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger)
+	for _, item := range res.BL.Data {
+		fmt.Println(item)
+	}
+	fmt.Println()
+
+	for _, item := range res.BI.Data {
+		fmt.Println(item)
+	}
+	fmt.Println()
 
 	// Кофигурирование сервера
 	server := http.Server{
