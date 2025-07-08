@@ -86,12 +86,6 @@ type ResponseWithManyRes struct {
 	Error  []string        `json:"error"`
 }
 
-type ResponseWithManyRes2 struct {
-	Call   string          `json:"call"`
-	Result []ResultRequest `json:"result"`
-	Error  []string        `json:"error"`
-}
-
 type ResultRequest struct {
 	PK     int            `json:"pk"`
 	Model  string         `json:"model"`
