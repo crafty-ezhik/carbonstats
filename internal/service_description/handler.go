@@ -65,7 +65,31 @@ func (h *serviceDescriptionHandlerImpl) Create() http.HandlerFunc {
 			if err != nil {
 				return
 			}
-			res.JSON(w, body, http.StatusOK)
+
+			var data []*ServiceDescription
+			for _, item := range body.Data {
+				amount, err := decimal.NewFromString(item.VPBXAmount)
+				if err != nil {
+					res.JSON(w, "Некорректный vpbx amount", http.StatusBadRequest)
+				}
+
+				temp := &ServiceDescription{
+					CarbonPK:     item.CarbonPK,
+					NumbersCount: item.NumbersCount,
+					VPBXAmount:   amount,
+					ServiceDesc:  item.ServiceDesc,
+				}
+
+				data = append(data, temp)
+			}
+			err = h.SerDescRepo.CreateBatch(data)
+			if err != nil {
+				res.JSON(w, err, http.StatusInternalServerError)
+				return
+			}
+
+			res.JSON(w, "Данные успешно добавлены", http.StatusOK)
+
 		} else {
 			body, err := req.HandleBody[CreateRequest](w, r)
 			if err != nil {

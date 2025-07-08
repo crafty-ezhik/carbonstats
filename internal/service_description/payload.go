@@ -3,8 +3,8 @@ package service_description
 // CreateRequest - Структура для описания принимаемых параметров при запросе создания
 type CreateRequest struct {
 	CarbonPK     uint   `json:"carbon_pk" validate:"min=1,gt=0,required"`
-	NumbersCount uint   `json:"numbers_count" validate:"gt=0,required"`
-	VPBXAmount   string `json:"vpbx_amount" validate:"gt=0,required"`
+	NumbersCount uint   `json:"numbers_count" validate:"gte=0"`
+	VPBXAmount   string `json:"vpbx_amount" validate:"gte=0,required"`
 	ServiceDesc  string `json:"service_desc"`
 }
 
