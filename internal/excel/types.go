@@ -56,3 +56,25 @@ type Rows struct {
 	Month time.Month  `json:"month"`
 	Year  int         `json:"year"`
 }
+
+// Flatten - возвращает структуру в виде []any в том же порядке, что и определены поля
+//
+//	Используется при добавлении строки в Excel
+func (r Row) Flatten() []any {
+	return []any{
+		r.ClientName,
+		r.MinutesCount,
+		r.MinutesAmountWoTax,
+		r.NumbersCount,
+		r.ServiceDescription,
+		r.ServicesAmountWithoutTax,
+		r.ServicesAmountWithTax,
+		r.TotalAmountWithoutTax,
+		r.TotalAmountWithTax,
+		r.CompanyAffiliation,
+		r.DocNumber,
+		r.VPBXAmountWithTax,
+		r.AmountFromBLToBI,
+		r.CallsCount,
+	}
+}
