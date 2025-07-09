@@ -200,7 +200,7 @@ func (ex *excelImpl) AddData(data *Rows) error {
 }
 
 // SetCellValue - Вносит данные (data) в указанную ячейку (cell).
-//Если необходима заливка и жирный шрифт, используется флаг fillingRequired
+// Если необходима заливка и жирный шрифт, используется флаг fillingRequired
 func (ex *excelImpl) SetCellValue(cell string, data any, fillingRequired bool) error {
 	err := ex.file.SetCellValue(ex.sheetName, cell, data)
 	if err != nil {

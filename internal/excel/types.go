@@ -7,7 +7,7 @@ import (
 
 const (
 	ColorBlack     = "#000000"
-	ColorLightGray = "D3D3D3"
+	ColorLightGray = "#D3D3D3"
 )
 
 const (
