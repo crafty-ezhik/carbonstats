@@ -90,8 +90,9 @@ func New(logger *zap.Logger, filename string) Excel {
 			Color:  ColorBlack,
 		},
 		Fill: excelize.Fill{
-			Type:  "pattern",
-			Color: []string{ColorLightGray},
+			Type:    "pattern",
+			Color:   []string{ColorLightGray},
+			Pattern: 1,
 		},
 	})
 	if err != nil {
