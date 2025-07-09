@@ -16,7 +16,11 @@ func DataPreparation(billing carbon.CarbonBilling, sd service_description.Servic
 	_ = context.TODO() // TODO: Передать в billing.StartStatisticsCollection()
 	tax := decimal.NewFromFloat(1.2)
 
-	carbonData := billing.StartStatisticsCollection()
+	carbonData, err := billing.StartStatisticsCollection()
+	if err != nil {
+		logger.Error("Error getting client list", zap.Error(err))
+		return &excel.Rows{}
+	}
 
 	output := excel.Rows{
 		BI: excel.CompanyData{
@@ -49,9 +53,14 @@ func DataPreparation(billing carbon.CarbonBilling, sd service_description.Servic
 					VPBXAmount:   decimal.NewFromFloat(0.00),
 					ServiceDesc:  "Запись в базе не найдена",
 				}
+			} else {
+				logger.Error("Ошибка получения данных", zap.Error(err))
+				servDesc = service_description.ServiceDescription{
+					NumbersCount: 0,
+					VPBXAmount:   decimal.NewFromFloat(0.00),
+					ServiceDesc:  "Ошибка получения данных в базе",
+				}
 			}
-
-			//return &output
 		}
 
 		row := excel.Row{
@@ -92,6 +101,7 @@ func DataPreparation(billing carbon.CarbonBilling, sd service_description.Servic
 		companyInfo.Data = append(companyInfo.Data, row)
 	}
 
+	// TODO: раскомментить
 	//err := statsRepo.CreateBatch(carbonData)
 	//if err != nil {
 	//	return nil
