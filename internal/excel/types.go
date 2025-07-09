@@ -5,6 +5,25 @@ import (
 	"time"
 )
 
+const (
+	ColorBlack     = "#000000"
+	ColorLightGray = "D3D3D3"
+)
+
+const (
+	BorderLeft   = "left"
+	BorderRight  = "right"
+	BorderBottom = "bottom"
+	BorderTop    = "top"
+)
+
+const (
+	AlignmentCenter = "center"
+	AlignmentLeft   = "left"
+	AlignmentRight  = "right"
+	AlignmentTop    = "top"
+)
+
 type Row struct {
 	ClientName               string          `json:"client_name"`
 	MinutesCount             decimal.Decimal `json:"minutes_count"`
