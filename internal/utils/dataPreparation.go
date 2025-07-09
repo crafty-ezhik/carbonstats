@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/excel"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
@@ -11,9 +10,7 @@ import (
 	"time"
 )
 
-// Должен принимать в себя карбон и репозиторий ServiceDescription
 func DataPreparation(billing carbon.CarbonBilling, sd service_description.ServiceDescriptionRepository, statsRepo statistics.StatisticsRepository, logger *zap.Logger) *excel.Rows {
-	_ = context.TODO() // TODO: Передать в billing.StartStatisticsCollection()
 	tax := decimal.NewFromFloat(1.2)
 
 	carbonData, err := billing.StartStatisticsCollection()
