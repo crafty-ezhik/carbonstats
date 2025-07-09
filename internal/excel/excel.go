@@ -114,6 +114,7 @@ func New(logger *zap.Logger, filename string) Excel {
 	}
 }
 
+// SetHeader - Создает шапку в excel файле с названиями столбцов
 func (ex *excelImpl) SetHeader(month time.Month) error {
 	ex.log.Info("Set header")
 	topLeftCell := "B1"
@@ -153,6 +154,7 @@ func (ex *excelImpl) SetHeader(month time.Month) error {
 	return nil
 }
 
+// AddData - Добавляет данные в Excel файл
 func (ex *excelImpl) AddData(data *Rows) error {
 	ex.log.Info("Adding data")
 	err := ex.SetHeader(data.Month)
@@ -197,6 +199,8 @@ func (ex *excelImpl) AddData(data *Rows) error {
 	return nil
 }
 
+// SetCellValue - Вносит данные (data) в указанную ячейку (cell).
+//Если необходима заливка и жирный шрифт, используется флаг fillingRequired
 func (ex *excelImpl) SetCellValue(cell string, data any, fillingRequired bool) error {
 	err := ex.file.SetCellValue(ex.sheetName, cell, data)
 	if err != nil {
@@ -218,6 +222,7 @@ func (ex *excelImpl) SetCellValue(cell string, data any, fillingRequired bool) e
 	return nil
 }
 
+// Save - сохранение файла
 func (ex *excelImpl) Save() error {
 	// TODO: Возможно стоит рассмотреть вариант, когда после добавление
 	// 	вызывается данный метод и сюда передается месяц и мы формируем
@@ -229,10 +234,10 @@ func (ex *excelImpl) Save() error {
 //
 // Параметры:
 //
-//		rowNum - номер строки в которую кладутся данные
-//	 	offset - число, необходимое, чтобы разница rowNum - offset = 0. Необходимо для правильного определения столбца
-//		data - данные о клиенте
-//		fillReq - флаг определяющий надо ли выделять ячейки или нет
+//	rowNum - номер строки в которую кладутся данные
+//	offset - число, необходимое, чтобы разница rowNum - offset = 0. Необходимо для правильного определения столбца
+//	data - данные о клиенте
+//	fillReq - флаг определяющий надо ли выделять ячейки или нет
 func (ex *excelImpl) addRow(rowNum int, data Row) error {
 	for colNum, v := range data.Flatten() {
 		err := ex.SetCellValue(cell(numberToExcelCol(colNum+1), rowNum), v, false)
@@ -243,6 +248,7 @@ func (ex *excelImpl) addRow(rowNum int, data Row) error {
 	return nil
 }
 
+// addTotalValue - добавляет итоговые значения после основных данных
 func (ex *excelImpl) addTotalValue(rowNum int, data CompanyData) error {
 	err := ex.SetCellValue(cell("A", rowNum), "Итого", true)
 	if err != nil {
@@ -276,6 +282,10 @@ func (ex *excelImpl) addTotalValue(rowNum int, data CompanyData) error {
 	return nil
 }
 
+// cell - возвращает название ячейки в нужном формате
+// Пример:
+//
+// cell("A", 2) -> "A2"
 func cell(cell string, num int) string {
 	return strings.ToUpper(fmt.Sprintf("%s%d", cell, num))
 }
