@@ -173,7 +173,22 @@ func (ex *excelImpl) AddData(data *Rows) error {
 
 	ex.log.Info("Adding total value BL data ")
 	err = ex.addTotalValue(start+len(blData.Data), blData)
+	if err != nil {
+		ex.log.Error("Failed to add row", zap.Error(err))
+	}
 
+	ex.log.Info("Adding BI data ")
+	start = start + len(blData.Data) + 1
+	biData := data.BI
+	for rowNum := start; rowNum < len(biData.Data); rowNum++ {
+		err = ex.addRow(rowNum, biData.Data[rowNum-start])
+		if err != nil {
+			ex.log.Error("Failed to add row", zap.Error(err))
+		}
+	}
+
+	ex.log.Info("Adding total value BI data ")
+	err = ex.addTotalValue(start+len(biData.Data), biData)
 	if err != nil {
 		ex.log.Error("Failed to add row", zap.Error(err))
 	}
