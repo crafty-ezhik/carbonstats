@@ -7,13 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crafty-ezhik/carbonstats/config"
+	"github.com/crafty-ezhik/carbonstats/internal/statistics"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	ErrGetClients = errors.New("error when getting the list of clients from carbon")
 )
 
 type CarbonBilling interface {
@@ -26,19 +33,20 @@ type CarbonBilling interface {
 	callApi(model string, params []byte) ([]byte, error)
 	buildFormData(params RequestParams) (url.Values, error)
 	addArgs(formData *url.Values, args []Pair, argsNumber string) error
+	StartStatisticsCollection() ([]statistics.ClientStatistics, error)
 }
 
 type CarbonBillingImpl struct {
-	abonentsList *AbonentsInfoList
-	servAddr     string
-	pastDate     time.Time
-	currentDate  time.Time
-	client       *http.Client
+	abonentsList  *AbonentsInfoList
+	servAddr      string
+	carbonParents []string
+	pastDate      time.Time
+	currentDate   time.Time
+	client        *http.Client
 
 	log *zap.Logger
 }
 
-// TODO: После реализации методов, сделать отдачу интерфейса, а не структуры
 func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) CarbonBilling {
 	client := &http.Client{
 		Timeout: time.Second * 60,
@@ -61,32 +69,102 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) Carbon
 		panic("Failed to create abonents list")
 	}
 	carbon.abonentsList = abonList
+	carbon.carbonParents = carbonCfg.Parents
 
 	return carbon
 }
 
-func (c *CarbonBillingImpl) Run() {
-	abonent := c.abonentsList.Abonents[0]
+// TODO: Реализовать передачу месяца и года, т.к возможно потребуется получить статистику за другие периоды
+// TODO: Если выносить эту функцию в хендлер, то можно получать дату и время оттуда. Если не передано, то отдавать значения по умолчанию
+func (c *CarbonBillingImpl) StartStatisticsCollection() ([]statistics.ClientStatistics, error) {
+	// Обновление даты прошедшего периода
+	c.pastDate = time.Now().AddDate(0, 0, -time.Now().Day())
 
-	docInfo, _ := c.getAbonentDocument(&abonent)
-	minInfo, _ := c.getMinutesForPastPeriod(int(c.pastDate.Month()), c.pastDate.Year(), abonent.PK)
+	var dataList []statistics.ClientStatistics
+
+	wg := &sync.WaitGroup{}
+	resChan := make(chan statistics.ClientStatistics)
+	numWorkers := len(c.abonentsList.Abonents)
+
+	year := c.pastDate.Year()
+	month := int(c.pastDate.Month())
+
+	// Обновление списка клиентов
+	abonList, err := c.getAbonentsList(c.carbonParents)
+	if err != nil {
+		return nil, ErrGetClients
+	}
+	c.abonentsList = abonList
+
+	// Асинхронно для каждого клиента необходимо получить все данные, а затем отдать готовую структуру с данными
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resChan <- c.worker(c.abonentsList.Abonents[i], month, year)
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(resChan)
+	}()
+
+	for data := range resChan {
+		dataList = append(dataList, data)
+	}
+	return dataList, nil
+}
+
+func (c *CarbonBillingImpl) worker(abonent AbonentInfo, month, year int) statistics.ClientStatistics {
+	docInfo, err := c.getAbonentDocument(&abonent)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("Failed to get abonent document for carbon_pk=%d. Error: %e", abonent.PK, err))
+		return statistics.ClientStatistics{}
+	}
+	minInfo, err := c.getMinutesForPastPeriod(month, year, abonent.PK)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("Failed to get minutes for past period for carbon_pk=%d. Error: %e", abonent.PK, err))
+		return statistics.ClientStatistics{}
+	}
 	additionalCost := c.calculatingCostAdditionalServices(docInfo, minInfo)
+	callsCount, err := c.getOutgoingCallsOverPastPeriod(&abonent)
+	if err != nil {
+		c.log.Error(fmt.Sprintf("Failed to get outgoing calls over past period for carbon_pk=%d. Error: %e", abonent.PK, err))
+		return statistics.ClientStatistics{}
+	}
 
-	callsCount, _ := c.getOutgoingCallsOverPastPeriod(&abonent)
+	var company string
+	if abonent.OperatorID == 1450 {
+		company = "БЛ"
+	} else {
+		company = "БИ"
+	}
 
-	fmt.Println("Сумма УПД: ", docInfo.Amount)
-	fmt.Println("Сумма за минуты: ", minInfo.Amount)
-	fmt.Println("Сумма за доп услуги:", additionalCost)
-	fmt.Println("Количество исходящих вызовов: ", callsCount)
-
+	data := statistics.ClientStatistics{
+		Month:               uint(month),
+		Year:                uint(year),
+		CarbonPK:            uint(abonent.PK),
+		ClientName:          abonent.Name,
+		MinutesCount:        minInfo.Count,
+		MinutesAmountWoTax:  minInfo.Amount,
+		ServicesAmountWoTaz: additionalCost,
+		TotalAmountWoTax:    docInfo.Amount,
+		DocNumber:           docInfo.Number,
+		CompanyAffiliation:  company,
+		CallsCount:          callsCount,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}
+	return data
 }
 
 func (c *CarbonBillingImpl) calculatingCostAdditionalServices(docInfo *DocumentInfo, minInfo *MinutesInfo) decimal.Decimal {
 	return docInfo.Amount.Sub(minInfo.Amount)
-
 }
 
 func (c *CarbonBillingImpl) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo) (int, error) {
+	c.log.Info(fmt.Sprintf("Get outgoing calls over past period for client %s", abonent.Name))
 	startPastDate := c.pastDate.AddDate(0, 0, -c.pastDate.Day())
 	data := RequestParams{
 		Method1: ObjFilter,
@@ -138,11 +216,12 @@ func (c *CarbonBillingImpl) getOutgoingCallsOverPastPeriod(abonent *AbonentInfo)
 		c.log.Debug("There are no elements in the response")
 		return 0, nil
 	}
-
+	c.log.Info(fmt.Sprintf("Get outgoing calls over past period for client %s successfully", abonent.Name))
 	return len(respData.Result), nil
 }
 
 func (c *CarbonBillingImpl) getMinutesForPastPeriod(monthNumber, year, clientPk int) (*MinutesInfo, error) {
+	c.log.Info(fmt.Sprintf("Get minutes for past period for client %d", clientPk))
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -227,10 +306,12 @@ func (c *CarbonBillingImpl) getMinutesForPastPeriod(monthNumber, year, clientPk 
 	output.Count = output.Count.Round(2)
 	output.Amount = output.Amount.Round(2)
 
+	c.log.Info(fmt.Sprintf("Get minutes for past period for client %d successfully", clientPk))
 	return &output, nil
 }
 
 func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentInfo, error) {
+	c.log.Info(fmt.Sprintf("Get document for client %s", abonent.Name))
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -276,7 +357,7 @@ func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentI
 	if len(respData.Result) < 1 {
 		c.log.Debug("There are no elements in the response")
 		return &DocumentInfo{
-			Number: "Нет документа за данный период",
+			Number: 0,
 			Amount: decimal.NewFromFloat(0),
 		}, nil
 	}
@@ -288,15 +369,23 @@ func (c *CarbonBillingImpl) getAbonentDocument(abonent *AbonentInfo) (*DocumentI
 		return nil, err
 	}
 
+	docNumber, err := strconv.Atoi(docInfo.Fields["number"].(string))
+	if err != nil {
+		c.log.Error("Error parsing document number", zap.Error(err))
+		return nil, err
+	}
+
 	output := &DocumentInfo{
-		Number: docInfo.Fields["number"].(string),
+		Number: docNumber,
 		Amount: opSumma,
 	}
 
+	c.log.Info(fmt.Sprintf("Get document for client %s successfully", abonent.Name))
 	return output, nil
 }
 
 func (c *CarbonBillingImpl) getDocumentAmount(operationPk, clientPk int) (decimal.Decimal, error) {
+	c.log.Info(fmt.Sprintf("Get document amount for client %d", clientPk))
 	data := RequestParams{
 		Method1: ObjGet,
 		Arg1: []Pair{
@@ -356,10 +445,12 @@ func (c *CarbonBillingImpl) getDocumentAmount(operationPk, clientPk int) (decima
 
 		summa = summa.Add(price.Mul(volume))
 	}
+	c.log.Info(fmt.Sprintf("Get document amount for client %d successfully", clientPk))
 	return summa.Round(2), nil
 }
 
 func (c *CarbonBillingImpl) getAbonentsList(parents []string) (*AbonentsInfoList, error) {
+	c.log.Info(fmt.Sprintf("Get abonent list from parents %v", parents))
 	data := RequestParams{
 		Method1: ObjFilter,
 		Arg1: []Pair{
@@ -407,37 +498,37 @@ func (c *CarbonBillingImpl) getAbonentsList(parents []string) (*AbonentsInfoList
 		}
 		output.Abonents = append(output.Abonents, abonInfo)
 	}
-
+	c.log.Info(fmt.Sprintf("Get abonent list from parents %v successfully", parents))
 	return &output, nil
 }
 
 func (c *CarbonBillingImpl) callApi(model string, params []byte) ([]byte, error) {
+	c.log.Debug(fmt.Sprintf("Запрос к модели %s", model))
 	apiUrl := fmt.Sprintf("http://%s/rest_api/v2/%s/", c.servAddr, model)
 
 	req, err := http.NewRequest(http.MethodPost, apiUrl, bytes.NewBuffer(params))
 	if err != nil {
-		//c.log.Error("Error creating request", zap.Error(err))
+		c.log.Error("Error creating request", zap.Error(err))
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		//c.log.Error("Error sending request", zap.Error(err))
+		c.log.Error("Error sending request", zap.Error(err))
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		//c.log.Error("Bad response status", zap.Int("status", resp.StatusCode))
+		c.log.Error("Bad response status", zap.Int("status", resp.StatusCode))
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		//c.log.Error("Error reading response", zap.Error(err))
+		c.log.Error("Error reading response", zap.Error(err))
 		return nil, err
 	}
-
-	c.log.Debug("Response from Carbon Billing", zap.String("ResponseBody", string(respBody))) // TODO: Убрать
+	c.log.Debug(fmt.Sprintf("Запрос к модели %s, выполнене успешно", model))
 	return respBody, nil
 }
 

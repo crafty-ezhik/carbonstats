@@ -8,6 +8,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/routes"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
+	"github.com/crafty-ezhik/carbonstats/internal/stats_data"
 	"github.com/crafty-ezhik/carbonstats/logger"
 	"github.com/go-chi/chi/v5"
 	"net/http"
@@ -17,12 +18,10 @@ import (
 func main() {
 	myLogger := logger.NewLogger(true)
 	cfg := config.LoadConfig()
-	_ = carbon.NewCarbonBilling(&cfg.Carbon, myLogger)
+	billing := carbon.NewCarbonBilling(&cfg.Carbon, myLogger)
 
 	database := db.GetConnection(&cfg.DB)
 	db.GoMigrate(database)
-
-	//billing.Run()
 
 	// Инициализация репозиториев
 	servDescRepo := service_description.NewServiceDescriptionRepository(database, myLogger)
@@ -31,12 +30,18 @@ func main() {
 	// Инициализация обработчиков
 	servDescHandler := service_description.NewServiceDescriptionHandler(myLogger, servDescRepo)
 	statsHandler := statistics.NewStatisticsHandler(statsRepo, myLogger)
+	statsDataHandler := stats_data.NewStatsDataHandler(statsRepo, servDescRepo, billing, myLogger)
 
 	// Инициализация роутера, middlewares, маршрутов
 	router := chi.NewRouter()
 
 	routes.InitMiddleware(router, cfg.Server.Timeout)
-	routes.InitRoutes(router, servDescHandler, statsHandler)
+	routes.InitRoutes(router, servDescHandler, statsHandler, statsDataHandler)
+
+	// TODO: УБрать
+	//res := utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger)
+	//jsonData, _ := json.MarshalIndent(res, "", " ")
+	//fmt.Println(string(jsonData))
 
 	// Кофигурирование сервера
 	server := http.Server{

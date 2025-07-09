@@ -15,7 +15,7 @@ func InitMiddleware(r *chi.Mux, timeout time.Duration) {
 	r.Use(middleware.AllowContentType("application/json", "application/x-www-form-urlencoded"))
 	r.Use(middleware.Timeout(timeout))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedOrigins:   []string{"https://*", "http://*", "file://*", "*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "Content-Length", "Accept-Encoding"},
 		AllowCredentials: true,

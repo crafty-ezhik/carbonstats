@@ -106,7 +106,7 @@ type AbonentInfo struct {
 }
 
 type DocumentInfo struct {
-	Number string          `json:"number"`
+	Number int             `json:"number"`
 	Amount decimal.Decimal `json:"op_summa"`
 }
 

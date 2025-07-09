@@ -14,6 +14,7 @@ type StatisticsHandler interface {
 
 type statisticsHandlerImpl struct {
 	StatisticsRepo StatisticsRepository
+
 	log            *zap.Logger
 }
 
@@ -45,3 +46,5 @@ func (h *statisticsHandlerImpl) Create() http.HandlerFunc {
 		res.JSON(w, body, http.StatusOK)
 	}
 }
+
+
