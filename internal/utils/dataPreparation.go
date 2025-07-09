@@ -43,7 +43,7 @@ func DataPreparation(billing carbon.CarbonBilling, sd service_description.Servic
 		servDesc, err := sd.Get(client.CarbonPK)
 		if err != nil {
 			if err.Error() == "record not found" {
-				logger.Warn("Запись не найдена")
+				logger.Debug("Запись не найдена")
 				servDesc = service_description.ServiceDescription{
 					NumbersCount: 0,
 					VPBXAmount:   decimal.NewFromFloat(0.00),
