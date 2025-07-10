@@ -167,7 +167,9 @@ func (ex *excelImpl) AddData(data *Rows) error {
 	ex.log.Info("Adding BL data ")
 	start := 3
 	blData := data.BL
-	for rowNum := start; rowNum < len(blData.Data); rowNum++ {
+	ex.log.Debug(fmt.Sprintf("\n\nДанные БЛ: %v", blData))
+	ex.log.Debug(fmt.Sprintf("Количество клиентов БЛ: %d\n\n", len(blData.Data)))
+	for rowNum := start; rowNum-start < len(blData.Data); rowNum++ {
 		err = ex.addRow(rowNum, blData.Data[rowNum-start])
 		if err != nil {
 			ex.log.Error("Failed to add row", zap.Error(err))
@@ -183,7 +185,9 @@ func (ex *excelImpl) AddData(data *Rows) error {
 	ex.log.Info("Adding BI data ")
 	start = start + len(blData.Data) + 1
 	biData := data.BI
-	for rowNum := start; rowNum < len(biData.Data); rowNum++ {
+	ex.log.Debug(fmt.Sprintf("\n\nДанные БИ: %v", biData))
+	ex.log.Debug(fmt.Sprintf("Количество клиентов БИ: %d\n\n", len(biData.Data)))
+	for rowNum := start; rowNum-start < len(biData.Data); rowNum++ {
 		err = ex.addRow(rowNum, biData.Data[rowNum-start])
 		if err != nil {
 			ex.log.Error("Failed to add row", zap.Error(err))
@@ -240,7 +244,9 @@ func (ex *excelImpl) Save() error {
 //	data - данные о клиенте
 //	fillReq - флаг определяющий надо ли выделять ячейки или нет
 func (ex *excelImpl) addRow(rowNum int, data Row) error {
+	ex.log.Debug(fmt.Sprintf("\nДобляется строка с клиентом %s", data.ClientName))
 	for colNum, v := range data.Flatten() {
+		ex.log.Debug(fmt.Sprintf("Добляется колонка %s со значением %v", cell(numberToExcelCol(colNum+1), rowNum), v))
 		err := ex.SetCellValue(cell(numberToExcelCol(colNum+1), rowNum), v, false)
 		if err != nil {
 			return err
