@@ -42,7 +42,10 @@ func main() {
 
 	// TODO: Delete later
 	excelFile := excel.New(myLogger, "test")
-	excelFile.AddData(utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger))
+	err := excelFile.AddData(utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger))
+	if err != nil {
+		fmt.Println(err)
+	}
 	if err := excelFile.Save(); err != nil {
 		myLogger.Error(err.Error())
 	}
@@ -55,9 +58,11 @@ func main() {
 
 	// Старт сервера
 	myLogger.Info("Starting proxy server on port: " + strconv.Itoa(cfg.Server.Port))
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		myLogger.Error("Error starting server.")
 		panic(err)
 	}
+
+	// TODO: Сделать gracefullshutdown
 }
