@@ -83,7 +83,7 @@ func New(logger *zap.Logger, filename string) Excel {
 		Border:    border,
 		Alignment: alignment,
 		Font: &excelize.Font{
-			Bold:   true,
+			Bold:   false,
 			Italic: false,
 			Family: "Arial",
 			Size:   11,
@@ -103,6 +103,9 @@ func New(logger *zap.Logger, filename string) Excel {
 		"Сумма за доп услуги, без НДС", "Сумма за доп услуги, с НДС", "Итоговая сумма, без НДС", "Итоговая сумма, с НДС",
 		"Компания", "Номер УПД", "Сумма за VPBX, с НДС", "Сумма от БЛ в БИ, руб с НДС", "Кол-во исходящих вызовов",
 	}
+
+	// Установка ширины столбцов
+	setColumnWidth(file, sheetName)
 
 	return &excelImpl{
 		log:         logger,
@@ -296,9 +299,18 @@ func (ex *excelImpl) addTotalValue(rowNum int, data CompanyData) error {
 func cell(cell string, num int) string {
 	return strings.ToUpper(fmt.Sprintf("%s%d", cell, num))
 }
-func calculatingColumnWidth(columnName string) int {
-	panic("implement me")
-	return 0
+
+func setColumnWidth(ex *excelize.File, sheet string) {
+	colWidth := map[string]float64{
+		"A": 65, "B": 15, "C": 15, "D": 15, "E": 29, "F": 15, "G": 15,
+		"H": 15, "I": 15, "J": 15, "K": 15, "L": 15, "M": 15, "N": 15,
+	}
+	for k, v := range colWidth {
+		err := ex.SetColWidth(sheet, k, k, v)
+		if err != nil {
+			return
+		}
+	}
 }
 
 // numberToExcelCol - Возвращает букву(-ы) для указания ячейки в Excel.
