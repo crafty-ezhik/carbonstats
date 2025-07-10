@@ -135,7 +135,7 @@ func (c *CarbonBillingImpl) worker(abonent AbonentInfo, month, year int) statist
 	}
 
 	var company string
-	if abonent.OperatorID == 1450 {
+	if abonent.OperatorID == 1450 || abonent.ParentID == 1455 {
 		company = "БЛ"
 	} else {
 		company = "БИ"
