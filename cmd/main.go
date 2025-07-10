@@ -11,7 +11,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
 	"github.com/crafty-ezhik/carbonstats/internal/stats_data"
 	"github.com/crafty-ezhik/carbonstats/internal/utils"
-	"github.com/crafty-ezhik/carbonstats/logger"
+	"github.com/crafty-ezhik/carbonstats/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
