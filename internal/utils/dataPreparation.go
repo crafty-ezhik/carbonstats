@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/excel"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
@@ -10,14 +9,12 @@ import (
 	"time"
 )
 
-func DataPreparation(billing carbon.CarbonBilling, sd service_description.ServiceDescriptionRepository, statsRepo statistics.StatisticsRepository, logger *zap.Logger) *excel.Rows {
-	tax := decimal.NewFromFloat(1.2)
+func DataPreparation(
+	sd service_description.ServiceDescriptionRepository,
+	carbonData []statistics.ClientStatistics,
+	logger *zap.Logger) *excel.Rows {
 
-	carbonData, err := billing.StartStatisticsCollection()
-	if err != nil {
-		logger.Error("Error getting client list", zap.Error(err))
-		return &excel.Rows{}
-	}
+	tax := decimal.NewFromFloat(1.2)
 
 	output := excel.Rows{
 		BI: excel.CompanyData{
@@ -97,12 +94,6 @@ func DataPreparation(billing carbon.CarbonBilling, sd service_description.Servic
 		// Добавление готовой строки
 		companyInfo.Data = append(companyInfo.Data, row)
 	}
-
-	// TODO: раскомментить
-	//err := statsRepo.CreateBatch(carbonData)
-	//if err != nil {
-	//	return nil
-	//}
 
 	return &output
 }

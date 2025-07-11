@@ -5,7 +5,6 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
-	"github.com/crafty-ezhik/carbonstats/internal/utils"
 	"github.com/crafty-ezhik/carbonstats/pkg/res"
 	"go.uber.org/zap"
 	"net/http"
@@ -47,8 +46,6 @@ func (h *statsDataHandler) GetStats() http.HandlerFunc {
 		// TODO: Сделать выбор по месяцам
 		h.log.Info(fmt.Sprintf("Запрос на получение статистики за %d-%d", month, year))
 
-		result := utils.DataPreparation(h.Billing, h.ServiceDesc, h.StatisticsRepo, h.log)
-
-		res.JSON(w, result, http.StatusOK)
+		res.JSON(w, "Coming soon...", http.StatusTeapot)
 	}
 }

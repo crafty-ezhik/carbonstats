@@ -33,7 +33,7 @@ type CarbonBilling interface {
 	callApi(model string, params []byte) ([]byte, error)
 	buildFormData(params RequestParams) (url.Values, error)
 	addArgs(formData *url.Values, args []Pair, argsNumber string) error
-	StartStatisticsCollection() ([]statistics.ClientStatistics, error)
+	StartStatisticsCollection(date time.Time) ([]statistics.ClientStatistics, error)
 }
 
 type CarbonBillingImpl struct {
@@ -41,7 +41,6 @@ type CarbonBillingImpl struct {
 	servAddr      string
 	carbonParents []string
 	pastDate      time.Time
-	currentDate   time.Time
 	client        *http.Client
 
 	log *zap.Logger
@@ -61,7 +60,6 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) Carbon
 		servAddr: fmt.Sprintf("%s:%d", carbonCfg.Host, carbonCfg.Port),
 		client:   client,
 		log:      logger,
-		pastDate: time.Now().AddDate(0, 0, -time.Now().Day()),
 	}
 
 	abonList, err := carbon.getAbonentsList(carbonCfg.Parents)
@@ -74,11 +72,10 @@ func NewCarbonBilling(carbonCfg *config.CarbonConfig, logger *zap.Logger) Carbon
 	return carbon
 }
 
-// TODO: Реализовать передачу месяца и года, т.к возможно потребуется получить статистику за другие периоды
-// TODO: Если выносить эту функцию в хендлер, то можно получать дату и время оттуда. Если не передано, то отдавать значения по умолчанию
-func (c *CarbonBillingImpl) StartStatisticsCollection() ([]statistics.ClientStatistics, error) {
+func (c *CarbonBillingImpl) StartStatisticsCollection(date time.Time) ([]statistics.ClientStatistics, error) {
 	// Обновление даты прошедшего периода
-	c.pastDate = time.Now().AddDate(0, 0, -time.Now().Day())
+	// TODO: Возможно придется убрать эту строку
+	c.pastDate = date.AddDate(0, 0, -date.Day())
 
 	var dataList []statistics.ClientStatistics
 
