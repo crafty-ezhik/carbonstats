@@ -20,7 +20,9 @@ func NewLogger(debug bool) *zap.Logger {
 	}
 
 	// Настройка вывода в консоль
-	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
+	devEncodingCfg := zap.NewDevelopmentEncoderConfig()
+	devEncodingCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(devEncodingCfg)
 
 	// Настройка вывода в файл с ротацией
 	fileWriter := &lumberjack.Logger{

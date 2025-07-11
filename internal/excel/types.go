@@ -5,6 +5,25 @@ import (
 	"time"
 )
 
+const (
+	ColorBlack     = "#000000"
+	ColorLightGray = "#D3D3D3"
+)
+
+const (
+	BorderLeft   = "left"
+	BorderRight  = "right"
+	BorderBottom = "bottom"
+	BorderTop    = "top"
+)
+
+const (
+	AlignmentCenter = "center"
+	AlignmentLeft   = "left"
+	AlignmentRight  = "right"
+	AlignmentTop    = "top"
+)
+
 type Row struct {
 	ClientName               string          `json:"client_name"`
 	MinutesCount             decimal.Decimal `json:"minutes_count"`
@@ -36,4 +55,26 @@ type Rows struct {
 	BI    CompanyData `json:"bi"`
 	Month time.Month  `json:"month"`
 	Year  int         `json:"year"`
+}
+
+// Flatten - возвращает структуру в виде []any в том же порядке, что и определены поля
+//
+//	Используется при добавлении строки в Excel
+func (r Row) Flatten() []any {
+	return []any{
+		r.ClientName,
+		r.MinutesCount,
+		r.MinutesAmountWoTax,
+		r.NumbersCount,
+		r.ServiceDescription,
+		r.ServicesAmountWithoutTax,
+		r.ServicesAmountWithTax,
+		r.TotalAmountWithoutTax,
+		r.TotalAmountWithTax,
+		r.CompanyAffiliation,
+		r.DocNumber,
+		r.VPBXAmountWithTax,
+		r.AmountFromBLToBI,
+		r.CallsCount,
+	}
 }

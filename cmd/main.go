@@ -5,11 +5,13 @@ import (
 	"github.com/crafty-ezhik/carbonstats/config"
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/db"
+	"github.com/crafty-ezhik/carbonstats/internal/excel"
 	"github.com/crafty-ezhik/carbonstats/internal/routes"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
 	"github.com/crafty-ezhik/carbonstats/internal/stats_data"
-	"github.com/crafty-ezhik/carbonstats/logger"
+	"github.com/crafty-ezhik/carbonstats/internal/utils"
+	"github.com/crafty-ezhik/carbonstats/pkg/logger"
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
@@ -38,10 +40,15 @@ func main() {
 	routes.InitMiddleware(router, cfg.Server.Timeout)
 	routes.InitRoutes(router, servDescHandler, statsHandler, statsDataHandler)
 
-	// TODO: УБрать
-	//res := utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger)
-	//jsonData, _ := json.MarshalIndent(res, "", " ")
-	//fmt.Println(string(jsonData))
+	// TODO: Delete later
+	excelFile := excel.New(myLogger, "test")
+	err := excelFile.AddData(utils.DataPreparation(billing, servDescRepo, statsRepo, myLogger))
+	if err != nil {
+		fmt.Println(err)
+	}
+	if err := excelFile.Save(); err != nil {
+		myLogger.Error(err.Error())
+	}
 
 	// Кофигурирование сервера
 	server := http.Server{
@@ -51,9 +58,11 @@ func main() {
 
 	// Старт сервера
 	myLogger.Info("Starting proxy server on port: " + strconv.Itoa(cfg.Server.Port))
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
 		myLogger.Error("Error starting server.")
 		panic(err)
 	}
+
+	// TODO: Сделать gracefullshutdown
 }

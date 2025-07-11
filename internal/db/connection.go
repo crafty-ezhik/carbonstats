@@ -7,6 +7,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"time"
 )
 
 func GetConnection(config *config.DBConfig) *gorm.DB {
@@ -22,6 +23,13 @@ func GetConnection(config *config.DBConfig) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		panic(err)
+	}
+	sqlDB.SetMaxIdleConns(25)                 // Количество "холостых" соединений.
+	sqlDB.SetMaxOpenConns(25)                 // Максимальное количество открытых соединений
+	sqlDB.SetConnMaxLifetime(5 * time.Minute) // Время жизни соединения
 	return db
 }
 
