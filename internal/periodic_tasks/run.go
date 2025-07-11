@@ -31,3 +31,21 @@ func RunMonthlyTask[T Task](ctx context.Context, wg *sync.WaitGroup, log *zap.Lo
 		}
 	}
 }
+
+func RunHealthCheckTask[T Task](ctx context.Context, wg *sync.WaitGroup, log *zap.Logger, task T) error {
+	defer wg.Done()
+	for {
+		now := time.Now()
+		next := now.Add(time.Minute * 3)
+
+		select {
+		case <-time.After(next.Sub(now)):
+			if err := task.RunTask(); err != nil {
+				log.Error("RunHealthCheckTask", zap.Error(err))
+			}
+		case <-ctx.Done():
+			log.Info("RunHealthCheckTask cancelled")
+			return ctx.Err()
+		}
+	}
+}
