@@ -6,6 +6,7 @@ import (
 	"github.com/crafty-ezhik/carbonstats/config"
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/db"
+	"github.com/crafty-ezhik/carbonstats/internal/periodic_tasks"
 	"github.com/crafty-ezhik/carbonstats/internal/routes"
 	"github.com/crafty-ezhik/carbonstats/internal/service_description"
 	"github.com/crafty-ezhik/carbonstats/internal/statistics"
@@ -55,6 +56,20 @@ func main() {
 	defer cancel()
 
 	var wg sync.WaitGroup
+
+	// Запуск задачи по созданию отчетов
+	wg.Add(1)
+	go func() {
+		err := periodic_tasks.RunMonthlyTask(ctx, &wg, myLogger, &periodic_tasks.CustomerReport{
+			CarbonCfg:    &cfg.Carbon,
+			ServDescRepo: servDescRepo,
+			StatsRepo:    statsRepo,
+			Log:          myLogger,
+		})
+		if err != nil {
+			myLogger.Error("periodic_tasks.RunMonthlyTask", zap.Error(err))
+		}
+	}()
 
 	// Запуск сервера
 	wg.Add(1)
