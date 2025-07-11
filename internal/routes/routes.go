@@ -19,6 +19,7 @@ func InitRoutes(r *chi.Mux, h service_description.ServiceDescriptionHandler, hs 
 
 		r.Route("/stats", func(r chi.Router) {
 			r.Get("/", hs.GetAll())
+			r.Get("/date", hs.GetByDate())
 			r.Get("/get_stats", sd.GetStats())
 			r.Post("/", hs.Create())
 		})
