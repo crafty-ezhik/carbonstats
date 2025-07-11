@@ -22,7 +22,7 @@ type CustomerReport struct {
 
 func (cr *CustomerReport) setFilename() string {
 	cr.Log.Info("SetFilename called for CustomerReport.")
-	return fmt.Sprintf("Статистика по клиентам КиК за %s", cr.Date.Month())
+	return fmt.Sprintf("./docs/Статистика по клиентам КиК за %s", cr.Date.Month()-1)
 }
 
 func (cr *CustomerReport) setDate() {
