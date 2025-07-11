@@ -16,8 +16,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    int
-	Timeout time.Duration
+	Port            int
+	Timeout         time.Duration
+	ShutDownTimeout time.Duration
 }
 
 type DBConfig struct {
@@ -60,6 +61,11 @@ func LoadConfig() *Config {
 		serverTimeout = 30 * time.Second
 	}
 
+	shutdownTimeout, err := time.ParseDuration(os.Getenv("SERVER_SHUTDOWN_TIMEOUT"))
+	if err != nil {
+		shutdownTimeout = 5 * time.Second
+	}
+
 	return &Config{
 		DB: DBConfig{
 			Host:     os.Getenv("DATABASE_HOST"),
@@ -77,8 +83,9 @@ func LoadConfig() *Config {
 			Debug: os.Getenv("CARBON_DEBUG") == "true",
 		},
 		Server: ServerConfig{
-			Port:    serverPort,
-			Timeout: serverTimeout,
+			Port:            serverPort,
+			Timeout:         serverTimeout,
+			ShutDownTimeout: shutdownTimeout,
 		},
 	}
 }
