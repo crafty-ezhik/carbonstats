@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/crafty-ezhik/carbonstats/config"
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
@@ -66,8 +67,8 @@ func main() {
 			StatsRepo:    statsRepo,
 			Log:          myLogger,
 		})
-		if err != nil {
-			myLogger.Error("periodic_tasks.RunMonthlyTask", zap.Error(err))
+		if err != nil && !errors.Is(err, context.Canceled) {
+			myLogger.Warn("periodic_tasks.RunMonthlyTask", zap.Error(err))
 		}
 	}()
 
@@ -77,9 +78,8 @@ func main() {
 		defer wg.Done()
 		myLogger.Info("Starting proxy server on port: " + strconv.Itoa(cfg.Server.Port))
 		err := server.ListenAndServe()
-		if err != nil {
-			myLogger.Error("Error starting server.")
-			panic(err)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			myLogger.Error("Error starting server.", zap.Error(err))
 		}
 	}()
 
