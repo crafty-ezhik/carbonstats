@@ -1,6 +1,7 @@
 package periodic_tasks
 
 import (
+	"fmt"
 	"github.com/crafty-ezhik/carbonstats/config"
 	"github.com/crafty-ezhik/carbonstats/internal/carbon"
 	"github.com/crafty-ezhik/carbonstats/internal/excel"
@@ -16,16 +17,27 @@ type CustomerReport struct {
 	ServDescRepo service_description.ServiceDescriptionRepository
 	StatsRepo    statistics.StatisticsRepository
 	Log          *zap.Logger
-	Filename     string
 	Date         time.Time
+}
+
+func (cr *CustomerReport) setFilename() string {
+	cr.Log.Info("SetFilename called for CustomerReport.")
+	return fmt.Sprintf("Статистика по клиентам КиК за %s", cr.Date.Month())
+}
+
+func (cr *CustomerReport) setDate() {
+	cr.Log.Info(fmt.Sprintf("Set date: %v", time.Now()))
+	cr.Date = time.Now()
 }
 
 func (cr *CustomerReport) RunTask() error {
 	cr.Log.Info("Starting GetMonthlyClientStatistics task")
+	cr.setDate()
+
 	billing := carbon.NewCarbonBilling(cr.CarbonCfg, cr.Log)
 
 	cr.Log.Info("Initializing Excel module")
-	ex := excel.New(cr.Log, cr.Filename)
+	ex := excel.New(cr.Log, cr.setFilename())
 	cr.Log.Info("Excel module has been successfully initialized")
 
 	cr.Log.Info("Starting receiving data from billing...")
